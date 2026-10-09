@@ -1,0 +1,14 @@
+let modules=[], module=null, pool=[], current=null, previous=null;
+const $=id=>document.getElementById(id); const state=JSON.parse(localStorage.getItem('be-state')||'{"favorites":[],"learned":[]}');
+const save=()=>localStorage.setItem('be-state',JSON.stringify(state));
+async function start(){module=await (await fetch('business_english_101.json')).json(); modules=[module]; setupModule(module); if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');}
+function setupModule(m){module=m;$('moduleTitle').textContent=m.title;const sel=$('category');sel.innerHTML='<option value="all">全カテゴリー</option>'+m.categories.map(c=>`<option value="${c.id}">${c.order}. ${c.title}（${c.cards.length}）</option>`).join('');rebuild();}
+function rebuild(){const cid=$('category').value||'all';pool=module.categories.filter(c=>cid==='all'||c.id===cid).flatMap(c=>c.cards.map(x=>({...x,category:c.title,order:c.order}))).filter(x=>!$('favOnly').checked||state.favorites.includes(x.id)).filter(x=>!$('unlearnedOnly').checked||!state.learned.includes(x.id));randomCard();}
+function randomCard(){if(!pool.length){current=null;$('question').textContent='条件に合うカードがありません';$('answerWrap').hidden=true;return;}let candidates=pool.filter(x=>x.id!==previous);current=candidates[Math.floor(Math.random()*candidates.length)]||pool[0];previous=current.id;render();}
+function render(){const rev=$('direction').value==='en-jp';$('categoryName').textContent=`${current.order}. ${current.category}`;$('progress').textContent=`${pool.length}枚から出題`;$('question').textContent=rev?current.en:current.jp;$('answer').textContent=rev?current.jp:current.en;$('note').textContent=current.note||'';$('note').hidden=!current.note;$('answerWrap').hidden=true;$('reveal').hidden=false;$('favorite').textContent=(state.favorites.includes(current.id)?'★':'☆')+' お気に入り';$('favorite').classList.toggle('active',state.favorites.includes(current.id));$('learned').classList.toggle('active',state.learned.includes(current.id));}
+$('reveal').onclick=()=>{$('answerWrap').hidden=false;$('reveal').hidden=true};$('next').onclick=randomCard;$('category').onchange=rebuild;$('direction').onchange=()=>current&&render();$('favOnly').onchange=rebuild;$('unlearnedOnly').onchange=rebuild;
+$('favorite').onclick=()=>{if(!current)return;const a=state.favorites,i=a.indexOf(current.id);i<0?a.push(current.id):a.splice(i,1);save();render();};
+$('learned').onclick=()=>{if(!current)return;const a=state.learned,i=a.indexOf(current.id);i<0?a.push(current.id):a.splice(i,1);save();render();};
+$('reset').onclick=()=>{state.favorites=[];state.learned=[];save();rebuild();};
+$('addon').onchange=async e=>{try{const m=JSON.parse(await e.target.files[0].text());if(m.schemaVersion!==1||!Array.isArray(m.categories))throw Error();modules.push(m);setupModule(m);}catch{alert('対応する追加教材JSONではありません。');}};
+start();

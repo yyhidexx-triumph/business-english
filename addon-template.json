@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "sample-addon",
+  "title": "追加教材サンプル",
+  "categories": [
+    {
+      "id": "sample-1",
+      "title": "Sample",
+      "order": 1,
+      "cards": [
+        {
+          "id": "sample-1-1",
+          "jp": "日本語の問題",
+          "en": "English answer",
+          "note": "任意のメモ"
+        }
+      ]
+    }
+  ]
+}
