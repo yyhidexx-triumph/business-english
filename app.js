@@ -3,6 +3,8 @@ let module = null;
 let pool = [];
 let current = null;
 let currentIndex = -1;
+let englishVoice = null;
+let isSpeaking = false;
 
 const $ = id => document.getElementById(id);
 const state = JSON.parse(localStorage.getItem('be-state') || '{"favorites":[],"learned":[]}');
@@ -12,6 +14,7 @@ async function start() {
   module = await (await fetch('business_english_101.json?v=20261023-3')).json();
   modules = [module];
   setupNavigationButtons();
+  setupSpeech();
   setupModule(module);
 
   // Updated cache name in sw.js is recommended when replacing app.js.
@@ -39,7 +42,8 @@ function setupNavigationButtons() {
     nav.innerHTML = `
       <button id="prev" type="button">◀ 前へ</button>
       <button id="next" type="button" class="primary">次へ ▶</button>
-      <button id="random" type="button" style="grid-column:1/-1">🎲 ランダム表示</button>
+      <button id="random" type="button">🎲 ランダム表示</button>
+      <button id="speak" type="button">🔊 英文を読む</button>
     `;
     actions.appendChild(nav);
   }
@@ -47,6 +51,59 @@ function setupNavigationButtons() {
   $('prev').addEventListener('click', previousCard);
   $('next').addEventListener('click', nextCard);
   $('random').addEventListener('click', randomCard);
+  $('speak').addEventListener('click', toggleSpeech);
+}
+
+
+function setupSpeech() {
+  const button = $('speak');
+  if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+    if (button) {
+      button.disabled = true;
+      button.textContent = '音声読み上げ非対応';
+    }
+    return;
+  }
+
+  const selectEnglishVoice = () => {
+    const voices = window.speechSynthesis.getVoices();
+    englishVoice = voices.find(v => /^en-US$/i.test(v.lang)) ||
+      voices.find(v => /^en-GB$/i.test(v.lang)) ||
+      voices.find(v => /^en[-_]/i.test(v.lang)) || null;
+  };
+
+  selectEnglishVoice();
+  window.speechSynthesis.addEventListener('voiceschanged', selectEnglishVoice);
+}
+
+function stopSpeech() {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  isSpeaking = false;
+  const button = $('speak');
+  if (button && !button.disabled) button.textContent = '🔊 英文を読む';
+}
+
+function toggleSpeech() {
+  if (!current || !('speechSynthesis' in window)) return;
+  if (isSpeaking) {
+    stopSpeech();
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(current.en);
+  utterance.lang = englishVoice ? englishVoice.lang : 'en-US';
+  if (englishVoice) utterance.voice = englishVoice;
+  utterance.rate = 0.9;
+  utterance.pitch = 1.0;
+  utterance.volume = 1.0;
+  utterance.onstart = () => {
+    isSpeaking = true;
+    $('speak').textContent = '■ 読み上げ停止';
+  };
+  utterance.onend = stopSpeech;
+  utterance.onerror = stopSpeech;
+  window.speechSynthesis.speak(utterance);
 }
 
 function setupModule(m) {
@@ -59,6 +116,7 @@ function setupModule(m) {
 }
 
 function rebuild() {
+  stopSpeech();
   const cid = $('category').value || 'all';
   pool = module.categories
     .filter(c => cid === 'all' || c.id === cid)
@@ -71,6 +129,7 @@ function rebuild() {
 }
 
 function showCurrentCard() {
+  stopSpeech();
   if (!pool.length || currentIndex < 0) {
     current = null;
     $('question').textContent = '条件に合うカードがありません';
